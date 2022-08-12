@@ -1,11 +1,54 @@
 import Head from "next/head";
 import Image from "next/image";
 import Banner from "../components/banner";
+import Card from "../components/card";
 import styles from "../styles/Home.module.css";
+import { fetchCoffeeStores } from "../lib/coffee-stores";
+import useTrackLocation from "../hooks/use-track-location";
+import { useEffect, useState, useContext } from "react";
+import { ACTION_TYPES, StoreContext } from "../store/store-context";
 
-export default function Home() {
+export async function getStaticProps(context) {
+  const coffeeStores = await fetchCoffeeStores();
+  return {
+    props: { coffeeStores },
+  };
+}
+
+export default function Home(props) {
+  const { handleTrackLocation, locationErrorMsg, isFindingLocation } =
+    useTrackLocation();
+  const { state, dispatch } = useContext(StoreContext);
+  const { coffeeStores, latLong } = state;
+  const [errorMessage, setErrorMessage] = useState(null);
+
+  useEffect(() => {
+    const fetchData = async function () {
+      if (latLong) {
+        try {
+          const res = await fetch(
+            `/api/getCoffeeStoresByLocation?latLong=${latLong}&limit=20`
+          );
+
+          const coffeeStores = await res.json();
+
+          dispatch({
+            type: ACTION_TYPES.SET_COFFEE_STORES,
+            payload: {
+              coffeeStores,
+            },
+          });
+          setErrorMessage("");
+        } catch (e) {
+          setErrorMessage(e.message);
+        }
+      }
+    };
+    fetchData();
+  }, [latLong]);
+
   const handleOnBannerBtnClick = () => {
-    console.log("hi");
+    handleTrackLocation();
   };
 
   return (
@@ -18,12 +61,54 @@ export default function Home() {
 
       <main className={styles.main}>
         <Banner
-          buttonText="View stores nearby"
+          buttonText={isFindingLocation ? "Locating..." : "View stores nearby"}
           onClick={handleOnBannerBtnClick}
         />
+        {locationErrorMsg && <p>Something went wrong: {locationErrorMsg}</p>}
+        {errorMessage && <p>Something went wrong: {errorMessage}</p>}
 
-        <div className={styles.heroImage}>
-          <Image src="/static/hero-image.png" width={700} height={400} />
+        <div className={styles.sectionWrapper}>
+          <div className={styles.heroImage}>
+            <Image src="/static/hero-image.png" width={700} height={400} />
+          </div>
+
+          {coffeeStores.length > 0 && (
+            <div>
+              <div className={styles.heading}>
+                <h1>Stores near me</h1>
+              </div>
+              <div className={styles.cardLayout}>
+                {coffeeStores.map((coffeeStore) => {
+                  return (
+                    <Card
+                      key={coffeeStore.id}
+                      coffeeStore={coffeeStore}
+                      className={styles.card}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {props.coffeeStores.length > 0 && (
+            <div>
+              <div className={styles.heading}>
+                <h1>Coffee Stores</h1>
+              </div>
+              <div className={styles.cardLayout}>
+                {props.coffeeStores.map((coffeeStore) => {
+                  return (
+                    <Card
+                      key={coffeeStore.id}
+                      coffeeStore={coffeeStore}
+                      className={styles.card}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </main>
     </div>
